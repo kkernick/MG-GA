@@ -1,0 +1,3 @@
+1. Name at least two optimizations employed in either the MinGen or Genetic Algorithm implementation used to boost performance.
+2. Why is the exhaustive MinGen Algorithm unable to compute an anonymized table for `table2.csv` in the example folder?
+3. How is the Genetic Algorithm implementation able to deliver superior performance to MinGen on larger tables, and what is the trade-off incurred by this approach?

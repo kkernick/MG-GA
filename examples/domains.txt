@@ -1,0 +1,5 @@
+Education/Higher: Masters, Bachelors, Diploma, PhD
+Education/Lower: High School, None
+
+Job/Blue Collar: Mechanic, Electrician, Plumber
+Job/White Collar: Secretary, Admin, Sales, Management
