@@ -25,7 +25,7 @@ Fortunately, we need not check every solution if we know that a particular branc
 1. Our scoring metrics, Minimal Distortion and Certainty, only *add* points for scoring; there is no means of decreasing a score. So, if the score for the first $x$ columns in a table is *already* greater than what our current best table is scored at, then we can guarantee that *any* further permutations of this table will yield to a worse score than what we have, and thus we can stop iteration immediately. If we consider our above example again, and make a prune after the first column, we remove $2^{50}$ states in a single operation.
 2. K-Anonymity can also be used for pruning. If a particular row can be uniquely identified using only a subset of its columns, then it is guaranteed that it can also be uniquely identified no matter the subsequent modifications. If, with $k=2$, we can uniquely identify each row by a *Name* column, and we did not suppress a value, then the K-Anonymity score of the column will be $1$, and no further modifications will be able to change that score. Therefore, if we didn't not achieve the desired K-Anonymity at the end of the column, then we can safely prune every other combination after that as well, with similar gains to the first method.
 
-> [!note]
+> [!info]
 > These pruning checks are used against the finished column, *and all previous* columns, as while a single column may be K-Anonymous, a combination of columns may cause that to change.
 
 Another profound optimization, which applies to both MinGen and the Genetic Algorithm, is through caching. To determine whether a particular table is better than what we've run into thus far, we need to check both the *Score* and *K-Anonymity*. With our above pruning scheme, we need to further check each *column* of the table, for every permutation of the table. Such a setup means that the functions responsible for these values will be called *often*, and benefits from even minor optimizations such as function inlining. A property of this problem is that a lot of these calculations will be redundant: there are going to be a lot of columns with the exact same value, and when we check previous columns, those values will be entirely unchanged. Such a situation is what caching is best suited for, where we can store the result of a computationally expensive operation in a lookup table, and when we run into the same inputs can simply pull from that cache rather than performing the computation.
@@ -43,7 +43,7 @@ To effectively store this caching data, especially since there will be a lot of 
 
 Importantly, each of these nodes can have a value, so we could store the certainty score for `[1]`, `[1,2]`, `[1,2,3]`, and `[1,2,3,4]` all within the same branch of the tree; while a hash map theoretically boasts a $O(1)$ lookup time, that does not account for collisions in the hash (Which will happen when storing this much data), alongside the space complexity of having to store all that data in separate entries. In contrast, we are guaranteed to find our match bounded by the amount of *columns* in the table, rather than the amount of values in the tree.
 
-> [!note]
+> [!info]
 > See `shared.h` for more details on the `shared:Tree` implementation.
 
 To put the effects of branch pruning into perspective, `examples/test.csv` prunes the search space by a factor of $3657$, reducing a total search space of $2,902,376,448$ distinct tables down to only $793,647$. This lead to an “effective” speed (The total amount of possible states divided by the time it took) of resolving a state in less than *half a nanosecond* for a PGO build on a laptop.
@@ -72,13 +72,14 @@ Like MinGen, there is significant room for interpretation and customization in t
 
 2. Our fitness metric works in two stages: the first stage seeks to reach the desired K-Anonymity, and the second seeks to minimize our scoring metric. This metric took (quite fittingly) numerous iterations to perfect, to which a more thorough remark can be found in the source code. However, the current iteration of the score can be expressed thusly:
 
-$$
+```math
 F(T_i, k) =
 \begin{cases}
 anonymity(T_i) & \mbox{if } anonymity(T_i) < k \\
 (k \times c) / score(T_i) & \mbox{if } anonymity(T_i) \ge k
 \end{cases}
-$$
+```
+
 For a given table permutation $T_i$ and desired $k$ score, where $anonymity$ returns the average K-Anonymity for each row of $T_i$ and $score$ returns either the Minimal-Distortion or Certainty Score depending on user selection, and $c$ is an arbitrary boost to the score to favor K-Anonymity, which currently uses the amount of cells in the table (Otherwise, the case for when K-Anonymity is reached would actually lower fitness). Unlike the $score$ function, which we want to *minimize*, fitness should be *maximized*, with higher fitness being better tables.
 
 3. We can use the fact that our tables contain a set of discrete cells in a similar way to genetic recombination in biology. We take the top 10% of each generation, and randomly pair them off with each other (Almost certainly more than once as we want to maintain the same population size, not because we necessarily need it for the algorithm, but because it makes our randomness functions easier). Each cell is randomly assigned as the value from either of the two parents, such as that it averages to 50% of the cells coming from one parent, and 50% of the other. At least, it would be a 50/50 split if we didn’t incorporate a key aspect of genetic algorithms: mutations. A fixed mutation rate (Which can be configured by the user) is added to the random number generator, and if a mutation rate is hit, the value of the cell is randomized from any of the possible values given the original table, numerical ranges, domain hierarchies, etc (Just as the initial population is formed). This allows for children to express traits not present in the previous generation. To further improve this idea, we also *increase* the mutation rate over time, such that what starts as strictly recombination devolves into a stochastic algorithm and lets us break through local maxima; while this idea isn’t required for a genetic algorithm (And some implementations would suffer from it), increasing the mutation rate drastically improves our output.
@@ -87,7 +88,7 @@ For a given table permutation $T_i$ and desired $k$ score, where $anonymity$ ret
 
 1. Our algorithm stops after a certain, user defined generation count is reached, which defaults to $1000$. 
 
-> [!note]
+> [!info]
 > Increasing the generation count also slows the rate at which mutations increase. This may make it seem that changes are not happening with the same frequency that a lower generation count does, as it gives more time for the algorithm at a specific mutation level to find better changes; that said, from tests within the `examples` folder a higher generation count does not significantly improve fitness.
 
 Despite starting from random noise, and with only a fitness score to guide it, the Genetic Algorithm returns the best result for both `table.csv` and `table4.csv` in the `examples` folder (MinGen can’t churn through `table2.csv`).
@@ -120,7 +121,7 @@ Arguments in square brackets (`[]`) are *mandatory* arguments, while those in cu
 	* `q`: Quasi: Will be considered for anonymization. This is the default value.
 	* `s`: Sensitive/Secret: The values of interest that will be left as-is. You should have at least one of these.
 	* `i`: Ignore: Columns that will be ignored for anonymization, such as those without sensitive information
-> [!note]
+> [!info]
 > As with all comma-delimited arguments, the ordering is first-column to last-column, and you need not exhaustively specify the value for each column; more values than there are columns will simply be trimmed to size, and missing columns will be filled with a default value. Check the PGO recipe within the `Makefile` to see how you can omit columns, particularly for `--types`.
 
 * `--domains` specifies an optional domains file, which includes the domain hierarchy for columns and can be embedded into the table to refine possible variations of a cell. Check `examples/domains.txt` for an example, alongside the documentation in `src/domains.h` for an explanation of the formatting.
@@ -191,7 +192,7 @@ Further, let’s assume that we don’t care about age being preserved, and thus
 ```
 Because every modification is valued at $0$, we get multiple results (You’ll get multiple results for many operations with `main`, this is just a case where, because there is no penalty for suppression, we get increasing suppression since the algorithm has no qualms just removing *all* the information indiscriminately as much as it does keeping it in).
 
->[!note]
+>[!info]
 >There is no minimum or maximum weight value (A value less than zero would *incentivize* the program to suppress the values), which means you may need to tweak the weights to get desired results, especially increasing/decreasing the weights to have your preference reflected in the output; note that while no weight will break the desired K-Anonymity for MinGen, because K-Anonymity is not necessarily *enforced* in the Genetic Algorithm, just strongly encouraged, setting excessively high/low weights can cause the Genetic Algorithm to return non K-Anonymous tables!
 
 * `--metric` specifies the score metric used for determining the value of a table. You can either select `md` for Minimal Distortion, which merely adds a point for *any* modification, regardless of how much information is quantitatively is preserved, or `c` for Certainty, which takes into consideration domains and ranges to give a more nuanced score reflecting the degree to which information is suppressed, and encouraging changes that keep as much information as possible. It defaults to Minimal Distortion.
