@@ -25,7 +25,7 @@ Fortunately, we need not check every solution if we know that a particular branc
 1. Our scoring metrics, Minimal Distortion and Certainty, only *add* points for scoring; there is no means of decreasing a score. So, if the score for the first $x$ columns in a table is *already* greater than what our current best table is scored at, then we can guarantee that *any* further permutations of this table will yield to a worse score than what we have, and thus we can stop iteration immediately. If we consider our above example again, and make a prune after the first column, we remove $2^{50}$ states in a single operation.
 2. K-Anonymity can also be used for pruning. If a particular row can be uniquely identified using only a subset of its columns, then it is guaranteed that it can also be uniquely identified no matter the subsequent modifications. If, with $k=2$, we can uniquely identify each row by a *Name* column, and we did not suppress a value, then the K-Anonymity score of the column will be $1$, and no further modifications will be able to change that score. Therefore, if we didn't not achieve the desired K-Anonymity at the end of the column, then we can safely prune every other combination after that as well, with similar gains to the first method.
 
-> [!info]
+> [!note]
 > These pruning checks are used against the finished column, *and all previous* columns, as while a single column may be K-Anonymous, a combination of columns may cause that to change.
 
 Another profound optimization, which applies to both MinGen and the Genetic Algorithm, is through caching. To determine whether a particular table is better than what we've run into thus far, we need to check both the *Score* and *K-Anonymity*. With our above pruning scheme, we need to further check each *column* of the table, for every permutation of the table. Such a setup means that the functions responsible for these values will be called *often*, and benefits from even minor optimizations such as function inlining. A property of this problem is that a lot of these calculations will be redundant: there are going to be a lot of columns with the exact same value, and when we check previous columns, those values will be entirely unchanged. Such a situation is what caching is best suited for, where we can store the result of a computationally expensive operation in a lookup table, and when we run into the same inputs can simply pull from that cache rather than performing the computation.
@@ -43,14 +43,14 @@ To effectively store this caching data, especially since there will be a lot of 
 
 Importantly, each of these nodes can have a value, so we could store the certainty score for `[1]`, `[1,2]`, `[1,2,3]`, and `[1,2,3,4]` all within the same branch of the tree; while a hash map theoretically boasts a $O(1)$ lookup time, that does not account for collisions in the hash (Which will happen when storing this much data), alongside the space complexity of having to store all that data in separate entries. In contrast, we are guaranteed to find our match bounded by the amount of *columns* in the table, rather than the amount of values in the tree.
 
-> [!info]
+> [!note]
 > See `shared.h` for more details on the `shared:Tree` implementation.
 
 To put the effects of branch pruning into perspective, `examples/test.csv` prunes the search space by a factor of $3657$, reducing a total search space of $2,902,376,448$ distinct tables down to only $793,647$. This lead to an “effective” speed (The total amount of possible states divided by the time it took) of resolving a state in less than *half a nanosecond* for a PGO build on a laptop.
 
 To put the effects of caching into perspective, we can compare a run of `examples/test.csv` using the `--no-cache` argument to disable the cache. On the same setup above, enabling the cache decreases the run time from $2734.42$ milliseconds to $1305.53$ milliseconds, a speedup by a factor of two and with a 99.98% hit rate on the K-Anonymity cache, and a 99.993% hit rate on the Score Cache, which are staggeringly high rates for a cache.
 
-> [!info]
+> [!note]
 > The hit rate of a cache is defined by the amount of times that the cache was *hit*, or a pre-computed result was already in the cache and could be returned immediately, divided by the amount of *misses*, or the amount of times a result was not in the cache, and had to be computed and added, and the *hits*.
 
 ### GeneticAlgorithm
@@ -88,7 +88,7 @@ For a given table permutation $T_i$ and desired $k$ score, where $anonymity$ ret
 
 1. Our algorithm stops after a certain, user defined generation count is reached, which defaults to $1000$. 
 
-> [!info]
+> [!note]
 > Increasing the generation count also slows the rate at which mutations increase. This may make it seem that changes are not happening with the same frequency that a lower generation count does, as it gives more time for the algorithm at a specific mutation level to find better changes; that said, from tests within the `examples` folder a higher generation count does not significantly improve fitness.
 
 Despite starting from random noise, and with only a fitness score to guide it, the Genetic Algorithm returns the best result for both `table.csv` and `table4.csv` in the `examples` folder (MinGen can’t churn through `table2.csv`).
@@ -102,7 +102,7 @@ If you want to see the MinGen and Genetic Algorithm implementations in action, t
 > [!tip]
 > You are *strongly* encouraged to compile your own version of the application, rather than using the pre-compiled version. There is both an optimized and PGO optimized recipe that can be invoked by `make optimized` and `make pgo` respectively. For reference, an unoptimized version runs in $12749$ milliseconds, optimized in $1281$, and PGO in $1044$, or a speed by a factor of $10$ for optimized, and a 20% speedup on top of that for PGO. There are no dependencies outside of the standard library and compiler, so if you have `g++` and `libc`, so you should be able to compile it using `make`. All examples henceforth will use the name `main` as the program name, but if you are using the precompiled version you should change that to `main_pc`. See [Building](./BUILDING.md) for details
 
-> [!info]
+> [!note]
 > PGO, or Profile Guided Optimization, is a technique available in both GCC and Clang in which a profile build of the application is run, and statistics, chiefly the amount of times a conditional (IE an `if` statement) falls through, which allows it to make informed optimizations on the application, particularly in being able to *unroll* loops (Which allows for multiple iterations of the loop to be vectorized and run in parallel). There are no additional dependencies or setup needed to create a PGO optimized version of `main`, just run `make pgo` in the project directory.
 
 `main` offers a bevy of configurations, which can look daunting, so we’ll step through each option:
@@ -121,7 +121,7 @@ Arguments in square brackets (`[]`) are *mandatory* arguments, while those in cu
 	* `q`: Quasi: Will be considered for anonymization. This is the default value.
 	* `s`: Sensitive/Secret: The values of interest that will be left as-is. You should have at least one of these.
 	* `i`: Ignore: Columns that will be ignored for anonymization, such as those without sensitive information
-> [!info]
+> [!note]
 > As with all comma-delimited arguments, the ordering is first-column to last-column, and you need not exhaustively specify the value for each column; more values than there are columns will simply be trimmed to size, and missing columns will be filled with a default value. Check the PGO recipe within the `Makefile` to see how you can omit columns, particularly for `--types`.
 
 * `--domains` specifies an optional domains file, which includes the domain hierarchy for columns and can be embedded into the table to refine possible variations of a cell. Check `examples/domains.txt` for an example, alongside the documentation in `src/domains.h` for an explanation of the formatting.
@@ -200,7 +200,7 @@ Because every modification is valued at $0$, we get multiple results (You’ll g
 * `--iterations` has a two-fold purpose depending on the `--mode` switch:
 	* When `--mode=mg`, it defines a non-exhaustive, stochastic search that will attempt the defined amount of iterations before returning the best found result. `-1` asserts an exhaustive search, as it its default behavior. 
 	* When `--mode=ga`, it defines the amount of generations that should be used in the algorithm, to which the default is $1000$. 
-> [!info]
+> [!note]
 > Our iteration count is stored as an *unsigned* number, which means that rather than using the last bit of the number to hold the sign of the number (Positive or Negative), it is used to double the amount of numbers that can be stored, at the cost of not being able to hold negative numbers. Due to the way that negative numbers are stored (Two’s Compliment), a *signed* value of $-1$ equates to a bit string of all $1$ which is the largest value an unsigned number can store!
 
 * `--population` defines the size of each generation when `--mode=ga` (This does nothing when using MinGen). A higher population size increases the genetic diversity of each sample (As it also increases the size of the pool of parents to which the generation is sourced), but also significantly increases runtime. It defaults to $100$.
